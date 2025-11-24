@@ -16,6 +16,10 @@ class Person:
     lunar_month: int
     lunar_day: int
 
+    def zodiac(self) -> str:
+        Zodiac = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"]
+        return Zodiac[(self.year - 2020) % 12] # 2020年是鼠年
+
 def die(err):
     sys.exit(err)
 
@@ -78,7 +82,7 @@ def append_birthday_to_calendar(calendar, person:Person, this_year, max_age) -> 
         icsEvent.name = f'{person.name}的农历{age}岁生日'
         if i > 0:
             icsEvent.name += '(闰)'
-        icsEvent.description = f'生日快乐，{person.year}年出生，农历{person.lunar_month:02d}-{person.lunar_day:02d}'
+        icsEvent.description = f'生日快乐，{person.year}年出生，属{person.zodiac()}，农历{person.lunar_month:02d}-{person.lunar_day:02d}'
         icsEvent.begin = datetime.datetime(new_birthday_solar.year, new_birthday_solar.month, new_birthday_solar.day)
         icsEvent.make_all_day()
         icsEvent.created = datetime.datetime.now()
