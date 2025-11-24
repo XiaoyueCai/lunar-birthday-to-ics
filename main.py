@@ -7,48 +7,64 @@ import lunarcalendar
 import json
 import os
 import sys
+from dataclasses import dataclass
 
-# Global vars
-KEY_PERSONS='persons'
-KEY_NAME = 'name'
-KEY_BIRTHDAY_SOLAR = 'birthday'
-KEY_BIRTHDAY_LUNAR = 'birthday_lunar'
+@dataclass
+class Person:
+    name: str
+    year: int # 出生的农历年份
+    lunar_month: int
+    lunar_day: int
 
 def die(err):
     sys.exit(err)
 
-def json_to_persons(json_file_path):
+def json_to_persons(json_file_path:str) -> list[Person]:
     ret = []
     with open(json_file_path, 'r') as f:
+        # json key
+        KEY_PERSONS='persons'
+        KEY_NAME = 'name'
+        KEY_BIRTHDAY = 'birthday'
+        KEY_LUNAR = 'lunar'
+
         json_object = json.load(f)
         if KEY_PERSONS in json_object:
             for person in json_object[KEY_PERSONS]:
                 if KEY_NAME not in person:
                     die(f'missing key {KEY_NAME} in {json_file_path}')
-                
-                if KEY_BIRTHDAY_SOLAR not in person:
-                    die(f'missing key {KEY_BIRTHDAY_SOLAR} in {json_file_path}')
-                
-                birthday_solar = datetime.datetime.strptime(person[KEY_BIRTHDAY_SOLAR], '%Y-%m-%d')
-                birthday_luna = lunarcalendar.Converter.Solar2Lunar(lunarcalendar.Solar(birthday_solar.year, birthday_solar.month, birthday_solar.day))
 
-                person[KEY_BIRTHDAY_SOLAR] = birthday_solar
-                person[KEY_BIRTHDAY_LUNAR] = birthday_luna
-                ret.append(person)                                    
+                if KEY_BIRTHDAY not in person:
+                    die(f'missing key {KEY_BIRTHDAY} in {json_file_path}')
+
+                birthday = datetime.datetime.strptime(person[KEY_BIRTHDAY], '%Y-%m-%d')
+                birthday_luna: lunarcalendar.Lunar = None
+
+                if KEY_LUNAR in person and person[KEY_LUNAR] is True:
+                    birthday_luna = lunarcalendar.Lunar(birthday.year, birthday.month, birthday.day)
+                else:
+                    birthday_luna = lunarcalendar.Converter.Solar2Lunar(lunarcalendar.Solar(birthday.year, birthday.month, birthday.day))
+
+                ret.append(Person(person[KEY_NAME], birthday_luna.year, birthday_luna.month, birthday_luna.day))
         else:
             die(f'missing key {KEY_PERSONS} in {json_file_path}')
     return ret
 
-def append_birthday_to_calendar(calendar, solar_year, lunar_month, lunar_day, name, age):
+# 返回值true表示成功添加，返回false表示超过了最大年龄
+def append_birthday_to_calendar(calendar, person:Person, this_year, max_age) -> bool:
+    age = this_year - person.year
+    if age <= 0 or age > max_age:
+        return False
+
     new_birthday_solars = []
 
     # birthday which is not leap month
-    new_birthday_lunar = lunarcalendar.Lunar(solar_year, lunar_month, lunar_day, isleap = False)
+    new_birthday_lunar = lunarcalendar.Lunar(this_year, person.lunar_month, person.lunar_day, isleap = False)
     new_birthday_solars.append(lunarcalendar.Converter.Lunar2Solar(new_birthday_lunar))
 
     # birthday which is leap month
     try:
-        new_birthday_lunar = lunarcalendar.Lunar(solar_year, lunar_month, lunar_day, isleap = True)
+        new_birthday_lunar = lunarcalendar.Lunar(this_year, person.lunar_month, person.lunar_day, isleap = True)
         new_birthday_solars.append(lunarcalendar.Converter.Lunar2Solar(new_birthday_lunar))
         # print(f'There is a leap month in {solar_year}-{lunar_month}')
     except lunarcalendar.DateNotExist:
@@ -59,14 +75,16 @@ def append_birthday_to_calendar(calendar, solar_year, lunar_month, lunar_day, na
         new_birthday_solar = new_birthday_solars[i]
 
         icsEvent = ics.Event()
-        icsEvent.name = f'{name}的农历{age}岁生日'
+        icsEvent.name = f'{person.name}的农历{age}岁生日'
         if i > 0:
             icsEvent.name += '(闰)'
-        icsEvent.description = f'生日快乐，公历{birthday_solar_year}年出生，农历{lunar_month:02d}-{lunar_day:02d}'
+        icsEvent.description = f'生日快乐，{person.year}年出生，农历{person.lunar_month:02d}-{person.lunar_day:02d}'
         icsEvent.begin = datetime.datetime(new_birthday_solar.year, new_birthday_solar.month, new_birthday_solar.day)
         icsEvent.make_all_day()
         icsEvent.created = datetime.datetime.now()
         calendar.events.add(icsEvent)
+
+    return True
 
 if __name__ == "__main__":
     script_file = os.path.basename(sys.argv[0])
@@ -83,25 +101,19 @@ if __name__ == "__main__":
     json_file_path = args['i']
     event_count = args['c']
     max_age = args['m']
-    
+
     persons = json_to_persons(json_file_path)
     # print(persons)
 
     calendar = ics.Calendar()
     event_steps = list(range(event_count))
     today_solar_year = datetime.datetime.today().year
-    
+
     for person in persons:
-        birthday_lunar = person[KEY_BIRTHDAY_LUNAR]
-        birthday_lunar_month = birthday_lunar.month
-        birthday_lunar_day = birthday_lunar.day
-        birthday_solar_year = person[KEY_BIRTHDAY_SOLAR].year
-        name = person[KEY_NAME]
-        
         for step in event_steps:
             solar_new_year = today_solar_year + step
-            age = solar_new_year - birthday_solar_year
-            if 0 <= age and age <= max_age:           
-                append_birthday_to_calendar(calendar, solar_new_year, birthday_lunar_month, birthday_lunar_day, name, age)
+
+            if not append_birthday_to_calendar(calendar, person, solar_new_year, max_age):
+                break # Next person
 
     print(calendar.serialize())

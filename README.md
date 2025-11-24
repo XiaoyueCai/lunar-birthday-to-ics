@@ -44,7 +44,7 @@ END:VCALENDAR
 python3 main.py -i config.json -c 50 > /tmp/exported.ics
 ```
 
-注意[config.json](config-example.json)中的```birthday```字段为公历出生日期，须遵循```yyyy-mm-dd```格式
+注意[config.json](config-example.json)中的```birthday```字段为默认为公历出生日期，须遵循```yyyy-mm-dd```格式。若有布尔值的`"lunar: true"`，则表示该出生日期为农历。
 
 ## 导入到Google日历
 

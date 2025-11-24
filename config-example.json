@@ -1,5 +1,5 @@
 {
-	"persons": 
+	"persons":
 	[
 		{
 			"name": "小明",
@@ -7,7 +7,8 @@
 		},
 		{
 			"name": "小白",
-			"birthday": "2022-03-11"
+			"birthday": "2022-03-11",
+			"lunar": true
 		}
 	]
 }
